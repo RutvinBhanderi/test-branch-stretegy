@@ -1,11 +1,17 @@
-import { PointsBadge } from "@greenback/ui";
+import { redirect } from "next/navigation";
+import { getOnboardingState, nextStep, stepPath, isComplete } from "@/lib/onboarding";
 
-export default function HomePage() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-2xl font-semibold">Greenback Cash</h1>
-      <p className="text-sm text-gray-600">Foundation scaffold - replace this page.</p>
-      <PointsBadge points={0} />
-    </main>
-  );
+/**
+ * The root route decides where you belong.
+ *
+ * Note it holds no branching of its own: it fetches state and asks the pure rules
+ * in lib/onboarding/rules.ts. Every routing decision in this flow is made by one
+ * tested function, not scattered across pages.
+ */
+export default async function RootPage() {
+  const state = await getOnboardingState();
+
+  if (isComplete(state)) redirect("/home");
+
+  redirect(stepPath(nextStep(state)));
 }

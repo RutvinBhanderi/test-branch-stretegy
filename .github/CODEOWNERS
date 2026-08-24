@@ -2,10 +2,18 @@
 * @rutvin-bhanderi
 
 # Ops console routes within the web app.
-/apps/web/app/(ops)/ @rutvin-bhanderi
+/apps/web/app/ops/ @rutvin-bhanderi
 
-# Shared config affects every package - route through the architecture lead.
-/packages/config/ @rutvin-bhanderi
+# Auth boundary: session refresh and the ops route gate.
+/apps/web/middleware.ts @rutvin-bhanderi
+
+# Service-role client - bypasses RLS, so changes here are security changes.
+/apps/web/lib/supabase/ @rutvin-bhanderi
+
+# Build/lint/TS config for the web app - route through the architecture lead.
+/apps/web/tsconfig.json @rutvin-bhanderi
+/apps/web/.eslintrc.json @rutvin-bhanderi
+/apps/web/next.config.js @rutvin-bhanderi
 
 # Database schema and RLS policies - security-sensitive, always reviewed.
 /supabase/ @rutvin-bhanderi

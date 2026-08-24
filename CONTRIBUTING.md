@@ -21,17 +21,30 @@ Types in use: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `ci`.
 
 ## Where new code goes
 
+**`ARCHITECTURE.md` §5-§10 is the full answer** - which layer, which Supabase
+client, how it's validated and tested. The short version:
+
 - **Business logic that decides "what happens"** (matching, points calculation,
-  ledger operations) → `apps/web/lib/`, pure functions with no I/O where possible.
-  This is what the 90% coverage bar applies to - write the test alongside the logic,
-  not after.
-- **Anything that touches the DB directly** → Route Handlers or Server Actions in
-  `apps/web/app/`, using `lib/supabase/server.ts`. Never call Supabase with the
-  service role from client components.
-- **Shared types** → `packages/types/src`. If Supabase codegen would produce it,
-  don't hand-write it long-term - see the note in `packages/types/src/index.ts`.
-- **Shared UI** → `packages/ui/src`, only once a component is actually used in two+
-  places. Don't pre-abstract.
+  ledger balances) → a **pure function** in `apps/web/lib/<domain>/`, no I/O. This
+  is what the 90% coverage bar applies to - write the test alongside the logic, not
+  after.
+- **Fetching the data that logic runs on** → `lib/<domain>/queries.ts`, which does
+  touch Supabase and is *not* pure. That is by design: I/O is confined to
+  `queries.ts` and `service.ts` so the deciding stays testable. Keep those files
+  thin - if one grows an `if` about business meaning, that `if` belongs in a pure
+  function. See `ARCHITECTURE.md` §5.
+- **Writes** → Server Actions by default, Route Handlers for external callers. Both
+  must use `lib/supabase/admin.ts`; the schema has no customer-facing INSERT/UPDATE
+  policies, so writes through the anon client are rejected by RLS. The admin client
+  bypasses RLS, so scope every query by account in code - see `ARCHITECTURE.md` §6.
+- **Reads on behalf of a user** → `lib/supabase/server.ts`, where RLS scopes the
+  result for you.
+- **Domain types** → `lib/<domain>/types.ts`, owned by the domain they describe.
+  Generated Supabase types are different: they go in
+  `lib/supabase/database.types.ts` and never leave `queries.ts`.
+- **React components** → `apps/web/components/`. Props in, no fetching.
+- There is no `packages/` directory yet, and this is deliberate - see the repo
+  layout note in `README.md`. Don't pre-abstract.
 
 ## Testing expectations
 
@@ -40,7 +53,7 @@ Types in use: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `ci`.
   upload → points credited, wallet pass issuance) - don't add E2E coverage for
   things a unit test already covers faster and more reliably.
 - If coverage drops below the thresholds in `apps/web/vitest.config.ts` or
-  `apps/ocr-service/pyproject.toml`, the CI quality-gate job will fail the build -
+  `services/ocr/pyproject.toml`, the CI quality-gate job will fail the build -
   this is intentional, not a bug to work around.
 
 ## Database changes

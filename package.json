@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm -r --filter=./apps/* build",
-    "lint": "pnpm -r --filter=./apps/* --filter=./packages/* lint",
-    "typecheck": "pnpm -r --filter=./apps/web --filter=./packages/* typecheck",
+    "lint": "pnpm -r --filter=./apps/* lint",
+    "typecheck": "pnpm -r --filter=./apps/* typecheck",
     "test": "pnpm -r --filter=./apps/web test",
     "test:coverage": "pnpm -r --filter=./apps/web test:coverage",
     "e2e": "pnpm --filter web e2e",

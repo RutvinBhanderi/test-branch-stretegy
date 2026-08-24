@@ -7,10 +7,9 @@ Cannabis retail rewards platform - Next.js PWA + Supabase.
 ```
 apps/
   web/            Next.js 15 app (App Router) - storefront, rewards, ops console
-packages/
-  ui/             Shared React components
-  types/          Shared TypeScript types (incl. Supabase-generated types once applied)
-  config/         Shared ESLint + tsconfig base
+    app/          Routes, Route Handlers, Server Actions
+    components/   React components
+    lib/          Business logic, Supabase clients, domain types
 supabase/
   migrations/     Versioned SQL migrations (source of truth for the DB schema)
   seed/           Local dev seed data
@@ -18,10 +17,23 @@ supabase/
   workflows/      CI/CD pipeline
 ```
 
-Package manager is **pnpm** via workspaces (see `pnpm-workspace.yaml`). The
-`packages/*` split exists so shared UI/types are ready if a second app (e.g. a
-standalone ops console, or a future service) joins the monorepo later - it costs
-almost nothing today and saves an extraction later.
+Package manager is **pnpm** via workspaces (see `pnpm-workspace.yaml`), which
+currently tracks `apps/*` only.
+
+There is deliberately **no `packages/` directory yet**. Components, domain types,
+lint config and tsconfig all live inside `apps/web`, because `apps/web` is the only
+thing that consumes any of them - Supabase included, which is used from the Next.js
+app only. A shared layer with a single consumer is indirection, not reuse: it costs
+a `package.json`, a tsconfig, a lint config, a `transpilePackages` entry, a Sonar
+source root and a CI filter, and buys nothing the `@/*` path alias doesn't.
+
+`packages/` returns with `packages/contracts` when the Python OCR service lands -
+that one has two consumers in two languages, which is exactly the bar. Until then,
+don't add a package without a second real consumer.
+
+`supabase/` stays at the repo root on purpose - it is the system of record, not the
+web app's private data layer, and the Supabase CLI discovers `config.toml` by
+walking up from the repo root.
 
 ## Prerequisites
 
@@ -60,14 +72,17 @@ supabase db reset
 
 This is a foundation scaffold, not a finished app. What's real and working:
 
-- The app boots, is installable as a PWA, and has a working example of the
-  shared-package wiring (`packages/ui` -> `apps/web`).
-- `lib/matching/matchLineItems.ts` is a real, unit-tested example of how business
-  logic should be structured going forward: pure functions, no I/O, fully covered.
+- The app boots and is installable as a PWA.
+- **Onboarding is the reference implementation** - age gate → phone → verify →
+  profile → consent. Read `ARCHITECTURE.md` §10 for the guided tour, starting at
+  `apps/web/app/(auth)/onboarding/page.tsx`. `lib/onboarding/rules.ts` shows how
+  business logic should be structured: pure functions, no I/O, fully covered.
 - `supabase/migrations` has a working initial schema with RLS enabled and an
   append-only ledger enforced at the DB level - **reconcile this against the
   finalized DDL from the architecture sessions before it ships to staging**, it was
   scaffolded to unblock local dev.
 
-See `BRANCHING.md` for how to open PRs and what CI/branch protection expects, and
-`CONTRIBUTING.md` for coding conventions.
+Read **`ARCHITECTURE.md`** before writing code - sections 5-10 cover which layer
+your change belongs in, which Supabase client to use, and how the layers are
+tested. See `BRANCHING.md` for how to open PRs and what CI/branch protection
+expects, and `CONTRIBUTING.md` for coding conventions.

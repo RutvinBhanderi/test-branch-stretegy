@@ -27,7 +27,6 @@ const withPWA = require("next-pwa")({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@greenback/ui", "@greenback/types"],
   images: {
     formats: ["image/avif", "image/webp"],
   },
