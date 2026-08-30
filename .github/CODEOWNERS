@@ -1,10 +1,7 @@
 # Default owner for anything not matched below.
 * @rutvin-bhanderi
 
-# Ops console routes within the web app.
-/apps/web/app/ops/ @rutvin-bhanderi
-
-# Auth boundary: session refresh and the ops route gate.
+# Auth boundary: session refresh.
 /apps/web/middleware.ts @rutvin-bhanderi
 
 # Service-role client - bypasses RLS, so changes here are security changes.

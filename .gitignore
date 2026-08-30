@@ -49,3 +49,12 @@ supabase/.temp/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# next-pwa generated service worker (build output)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/workbox-*.js
+apps/web/public/workbox-*.js.map

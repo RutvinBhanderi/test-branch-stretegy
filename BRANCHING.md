@@ -128,10 +128,10 @@ creating the ruleset and let CI report once.
 
 ```bash
 git checkout develop && git pull
-git checkout -b feature/ops-payout-queue
+git checkout -b feature/receipt-capture
 # ... work ...
-git commit -m "feat(ops): add payout queue table"
-git push -u origin feature/ops-payout-queue
+git commit -m "feat(receipts): add capture screen"
+git push -u origin feature/receipt-capture
 gh pr create --base develop --fill
 ```
 

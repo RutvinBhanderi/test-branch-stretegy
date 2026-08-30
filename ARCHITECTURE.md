@@ -1,126 +1,82 @@
-# Greenback Cash — Code Architecture
+# Code Architecture
 
-Sections 1–4 describe the system. **Sections 5–10 are the ones to read before you
-write code** — they cover which layer a thing goes in and what it should look like.
+This repo is a **starter foundation**: one worked vertical slice, the conventions
+around it, and the CI/branching setup. Sections 1–3 describe what is here.
+**Sections 4–9 are the ones to read before you write code** — they cover which
+layer a thing goes in and what it should look like.
+
+Onboarding is the reference implementation. Everything else is infrastructure
+that exists to support it.
 
 ---
 
-## 1. Topology
+## 1. What this is
 
 | Component | Runs on | Responsibility |
 |---|---|---|
-| Next.js | Vercel | PWA, ops console, all business logic |
-| FastAPI | Container host | Receipt image processing + extraction |
+| Next.js 15 (App Router) | Vercel | PWA, all business logic |
 | Supabase | Supabase | Postgres, auth, storage, realtime |
 
-```
-Browser ──► Next.js (Vercel) ──► Supabase
-                │
-                ├──► FastAPI (container) ──► Gemini
-                │         └──► callback ──► Next.js
-                │
-                └──► Payout provider, Twilio, APNs
-
-Browser ◄──► Apple / Google Wallet   (native OS, geofencing)
-```
+One app, one database. Additional services get added as separate deployables with
+their own build — they do not get folded into `apps/web`.
 
 ---
 
 ## 2. Repo layout
 
 ```
-greenback/
-├── apps/web/              Next.js — PWA, ops console, all domain logic
+├── apps/web/              Next.js — PWA, all domain logic
 ├── supabase/              Migrations, seed, local config
 ├── scripts/               Repo tooling
-└── .github/workflows/
+└── .github/workflows/     CI
 ```
 
-Planned, not yet present:
+**Tooling: pnpm workspaces.** No Turborepo or Nx — there is one app. The workspace
+tracks `apps/*` only; add `packages/*` back when a package has two real consumers.
 
-```
-├── services/ocr/          FastAPI — image processing + extraction
-├── packages/contracts/    Shared schema → TS types + Pydantic models
-├── corpus/                Benchmark receipts + labels (git-lfs)
-└── docs/adr/              Architecture decision records
-```
-
-**Tooling: pnpm workspaces.** No Turborepo or Nx — there is one JS app, and the
-Python service will build in a Docker image outside the pnpm graph. The workspace
-currently tracks `apps/*` only; `packages/*` gets added back when
-`packages/contracts` arrives, because that is the first package with two consumers
-(TypeScript and Python). Until then there is no `packages/` directory, deliberately
-— see the repo layout note in `README.md`.
-
-CI scoping uses path filters: one workflow watching `apps/web/**`, another watching
-`services/ocr/**` once it exists.
+CI scoping uses path filters, so a second app or service can arrive with its own
+workflow without slowing this one down.
 
 ---
 
 ## 3. `apps/web` — structure
 
 ```
-middleware.ts     session refresh + ops route gate
+middleware.ts     session refresh
 
 app/                            ROUTING AND PRESENTATION ONLY
   (auth)/
     onboarding/     age gate → phone → verify → profile → consent → done
   (consumer)/
-    home/           balance, payout progress, scan CTA, nearby offers
-    capture/        camera, client-side quality checks, upload
-    receipts/       list + live status
-    wallet/         pass status, add-to-wallet, re-issue
-    cash-out/       method, soft-KYC step, confirmation
-  ops/
-    review-queue/   exceptions/  float/
-    overrides/      disputes/    deletions/
+    home/           the landing screen after onboarding
   api/                          external callers only
-    receipts/               upload
-    ocr/callback/           FastAPI posts results here
-    wallet/apple/v1/        Apple PassKit web service
-    payout/webhook/         provider settlement callbacks
-    cron/                   scheduled jobs
 
 components/                     PROPS IN, MARKUP OUT
   ui/             primitives — Button, Field, PointsBadge
-  layout/         AppShell, TabBar, OpsNav
-  feedback/       FormMessage, EmptyState, ErrorState
+  feedback/       FormMessage
 
 lib/                            EVERYTHING ELSE, BY DOMAIN
   onboarding/  step machine, guards          ← reference implementation
   auth/        session, OTP send/verify
   accounts/    the account record
   consent/     platform-level capture
-  receipts/    upload, dedupe, status state machine
-  matching/    catalog + campaign matching, confidence routing
-  ledger/      credit, debit, balance
-  campaigns/   eligibility, budget lock       (engine only, no UI)
-  wallet/      pass generation, coordinate selection, push
-  payout/      provider interface, soft-KYC, cash-out orchestration
-  float/       coverage ratio, snapshots
-  deletion/    request state machine, subprocessor adapters
-  audit/       append-only writer
-  ocr-client/  calls FastAPI — the only place that does
 
   supabase/    client.ts / server.ts / admin.ts / database.types.ts (generated)
   config/      env.ts (public) / serverEnv.ts (secrets, validated at boot)
   errors/      Result type, AppError
   observability/  logger.ts
-  utils/       formatters — money, dates
 
 tests/                          MIRRORS lib/ ONE FOR ONE
   onboarding/rules.test.ts      ↔  lib/onboarding/rules.ts
+  consent/rules.test.ts         ↔  lib/consent/rules.ts
 ```
 
-> `ops/` is a real URL segment, not an `(ops)` route group. A route group produces
-> no path prefix, which would leave `middleware.ts` with nothing to match on. The
-> gate depends on ops screens living under `/ops/*`. `(auth)` and `(consumer)` are
-> genuine groups — they share chrome without adding a segment.
+> `(auth)` and `(consumer)` are route groups — they share chrome without adding a
+> URL segment. Use a real path segment instead when middleware needs something to
+> match on.
 
-> **Not yet built:** `capture/`, `receipts/`, `wallet/`, `cash-out/`, every `ops/`
-> screen, every `api/` route, and the `campaigns`, `float`, `deletion`, `audit`,
-> `wallet`, `payout`, `ocr-client` domains. `float`, `deletion` and `audit` also
-> need migrations before code.
+Adding a domain means a folder under `lib/` with the shape in §4, a migration in
+`supabase/migrations/`, and a test alongside. Nothing else in the tree changes.
 
 ### The rule
 
@@ -129,73 +85,18 @@ tests/                          MIRRORS lib/ ONE FOR ONE
 - Pages call `lib/`. They don't query the database, hold business rules, or know
   about external providers.
 - `lib/` talks to Supabase and external services. It's the only layer that does —
-  and within `lib/`, only `queries.ts` and `service.ts` do. See §5.
+  and within `lib/`, only `queries.ts` and `service.ts` do. See §4.
 - Components receive props and don't fetch.
-
-### Deliberate exceptions
-
-- **The capture flow is a client component** — camera, WASM quality checks,
-  multi-segment state.
-- **The receipt status screen subscribes to Supabase Realtime directly** — a live
-  connection, not a fetch.
 
 ### Rendering
 
-Server Components for balance, receipts, wallet, and all ops reads — they call
-`lib/` directly, so no API round-trip and no loading flash on first paint. Client
-islands only for the camera, the Realtime subscription, and interactive forms.
-
-### Ops console
-
-Same app, same domain, separate route subtree behind a role gate. Ops is the
-internal Greenback team — Phase I has no brand-facing surface. Per PRD §2.1, ops
-configures brand offers via direct SQL in Phase I, so the console covers review
-queue, exception log, float HUD, overrides, disputes, and deletions. **No campaign
-CRUD screens.** `brand/` is not created — Phase II.
-
-Role is checked twice: middleware for the route boundary, and again server-side on
-every ops operation. Middleware alone is a client-routing decision; the override
-screen credits a real ledger.
+Server Components by default — they call `lib/` directly, so no API round-trip and
+no loading flash on first paint. Client islands only where you genuinely need
+browser APIs, a live subscription, or interactive form state.
 
 ---
 
-## 4. How the two services communicate
-
-**Async, webhook-style.**
-
-```
-1. Next.js creates the receipt record, calls FastAPI
-2. FastAPI acknowledges immediately and queues the work internally
-3. Next.js returns to the browser                    ← invocation ends, sub-second
-4. Browser subscribes to the receipt record via Realtime
-5. FastAPI processes on the container                ← no serverless duration limit
-6. FastAPI calls back to Next.js with a signed payload
-7. Next.js matches, credits, audits, updates status
-8. Realtime pushes the update to the browser
-```
-
-**Why not synchronous.** Extraction can take longer than a serverless function's
-maximum duration. A blocking call would be terminated mid-flight, leaving a
-stranded receipt and a 504. In the async version every Vercel invocation is under a
-second, and the long work happens on the container.
-
-### Boundaries on `services/ocr`
-
-1. **No Supabase credentials.** Next.js issues short-lived signed read URLs;
-   FastAPI fetches over plain HTTP.
-2. **No business logic.** No campaign matching, no budget checks, no ledger writes.
-   It normalizes text; Next.js decides what things are worth.
-3. **HTTP only, no shared imports.** It consumes `packages/contracts` as a
-   dependency, not a relative path.
-
-> **Open:** the original OCR spec included a matching module. Under these boundaries
-> that doesn't exist — Python normalizes (units, tokenization, noise stripping),
-> Next.js matches against the catalog. This is the one place the two designs
-> disagree and should be settled explicitly.
-
----
-
-## 5. Where does my code go?
+## 4. Where does my code go?
 
 Start here. Find your case, use that layer.
 
@@ -209,7 +110,7 @@ Start here. Find your case, use that layer.
 | Something drawn on screen | `components/` — props in, no fetching |
 
 **Server Actions are the default for writes.** Route Handlers exist for callers we
-don't control: the OCR callback, payout webhooks, Apple PassKit, cron. If our own
+don't control: provider webhooks, third-party callbacks, cron. If our own
 React form is the caller, use an Action — there's no URL to secure, no fetch to
 write, and no JSON contract to keep in sync.
 
@@ -298,7 +199,7 @@ export async function getConsents(
 
 Two reasons. Tests pass a stub instead of mocking module imports. And the caller
 has to choose which client — which means choosing a security model on purpose
-rather than by accident. See §6.
+rather than by accident. See §5.
 
 Queries return **domain types, never raw rows**. `snake_case` stops at the query
 layer; map it there. `lib/accounts/queries.ts` shows the mapping.
@@ -434,8 +335,8 @@ called; Next.js handles the network.
 **So where do hooks survive?** Three places, all genuinely browser-side:
 
 1. **Form state** — `useActionState` for pending/error, as above.
-2. **Realtime** — `useEffect` to open and tear down the subscription (§3).
-3. **Device APIs** — the camera capture flow (§3).
+2. **Realtime** — `useEffect` to open and tear down a Supabase subscription.
+3. **Device APIs** — camera, geolocation, anything behind `navigator`.
 
 Do not build a `useAuth()` hook. On the server, `getSessionAccount()` is the answer.
 If a client component needs to know who's signed in, its server parent passes it
@@ -465,9 +366,9 @@ the button.
 | Can read secrets / server env | Yes | **Never** |
 
 A client component that needs data gets it as **props from a server parent**, or
-uses a Server Action to write. It does not fetch on mount. The two deliberate
-exceptions are named in §3: the camera capture flow and the Realtime status
-subscription.
+uses a Server Action to write. It does not fetch on mount. The only exceptions
+are the browser-side cases listed above - a live subscription, or a device API
+that has no server equivalent.
 
 ### Where components live
 
@@ -492,14 +393,14 @@ don't hold business rules.
 
 ### Creating an API route
 
-Route Handlers are for callers we don't control — the OCR callback, payout
-webhooks, Apple PassKit, cron. **If our own React form is the caller, write a
+Route Handlers are for callers we don't control — provider webhooks, third-party
+callbacks, cron. **If our own React form is the caller, write a
 Server Action instead.**
 
 Every handler follows the same shape:
 
 ```ts
-// app/api/ocr/callback/route.ts
+// app/api/<provider>/callback/route.ts
 export async function POST(request: Request) {
   // 1. authenticate the CALLER — there is no browser session here
   if (!verifySignature(request)) {
@@ -526,7 +427,8 @@ Rules:
   machine callers. Verify a signature or shared secret explicitly.
 - **No business logic in `route.ts`** — it parses, delegates, formats a response.
 - **Never import one route handler from another.** Shared behaviour goes in `lib/`.
-- **Webhooks must be idempotent** — see §4 and the ledger rule in §10.
+- **Webhooks must be idempotent.** Providers retry. A second delivery of the same
+  event must not apply the effect twice - check for the prior write before doing it.
 
 ### What belongs in `lib/`
 
@@ -546,7 +448,7 @@ the logic belongs inside an existing one.
 
 ---
 
-## 6. Which Supabase client — and the one that can hurt you
+## 5. Which Supabase client — and the one that can hurt you
 
 Three clients. Picking wrong is the most expensive mistake available in this
 codebase.
@@ -579,7 +481,7 @@ component fails the build instead of shipping the key to a browser.
 
 ---
 
-## 7. Validation
+## 6. Validation
 
 Parse at the boundary, then trust the value.
 
@@ -614,26 +516,26 @@ person already consented?* — belong in `service.ts`.
 
 ---
 
-## 8. Errors
+## 7. Errors
 
 Expected failures are **return values**. Unexpected failures **throw**.
 
 ```ts
 type Result =
-  | { ok: true; payoutId: string }
+  | { ok: true; receiptId: string }
   | { ok: false; reason: "below_minimum" | "insufficient_balance" };
 ```
 
-"Below the minimum payout" is a normal outcome the UI must render, not an
+"Below the minimum" is a normal outcome the UI must render, not an
 exception. A Postgres connection failure is an exception — let it throw and hit the
 error boundary.
 
-Never swallow an error to return a falsy value; a silent failure in the ledger is
+Never swallow an error to return a falsy value; a silent failure in a write path is
 worse than a crash.
 
 ---
 
-## 9. Testing
+## 8. Testing
 
 Thresholds live in `apps/web/vitest.config.ts` and CI enforces them.
 
@@ -646,38 +548,36 @@ Thresholds live in `apps/web/vitest.config.ts` and CI enforces them.
 
 Write the test in the same PR as the logic, not a follow-up.
 
-`tests/ledger/balance.test.ts` and `tests/matchLineItems.test.ts` show the house
-style: a fixture builder with overrides, so each test displays only the field it
-cares about.
+`tests/onboarding/rules.test.ts` shows the house style: a fixture builder with
+overrides, so each test displays only the field it cares about. It also shows what
+`rules.ts` buys you — no mocks, no database, no async, and it still covers the
+whole flow.
 
-E2E (Playwright) is reserved for the few journeys that matter — auth, receipt
-upload → points credited, wallet pass issuance. Don't add E2E for something a unit
-test covers faster.
+E2E (Playwright) is reserved for the few journeys that genuinely matter. Don't add
+an E2E test for something a unit test covers faster.
 
 ---
 
-## 10. Conventions
+## 9. Conventions
 
 - **Files**: components `PascalCase.tsx`; everything else `camelCase.ts`.
-- **Domain types** live in `lib/types/` and are hand-written. **Generated Supabase
-  types go in `lib/supabase/database.types.ts`** — infrastructure, not vocabulary.
-  Keeping them apart is deliberate; see the rule below.
+- **Domain types** are hand-written, one file per domain: `lib/<domain>/types.ts`.
+  **Generated Supabase types go in `lib/supabase/database.types.ts`** —
+  infrastructure, not vocabulary. Keeping them apart is deliberate.
 - **Generated row types never leave `queries.ts`.** Map a row to a domain type at
   the query boundary and pass the domain type inward. A service signature
   containing `Database["public"]["Tables"][…]["Row"]` means your column names have
   become your domain vocabulary, and every migration is now a refactor.
-- **Only `lib/ledger/service.ts` will write to `ledger_entries`** (not built yet).
-  No other domain
-  credits or debits points directly — they call the ledger. One append-only,
-  trigger-enforced, money-bearing table gets exactly one door.
-- **Every points-crediting write is idempotent**, keyed on `receipt_id`. A retried
-  OCR callback that credits twice is the most damaging bug this system can produce.
-  Check before insert, in the ledger service — not in the caller.
-- **Imports** use the `@/` alias (`@/lib/ledger/balance`), not `../../..`.
-- **Money and points are integers.** Points are whole numbers; currency is
-  `numeric(10,2)` in Postgres. No floats for money.
-- **The ledger is append-only** — enforced by a trigger. Corrections are
-  compensating `ADJUSTMENT` entries, never edits.
+- **One door per value-bearing table.** If a table records money, points or
+  anything else people will argue about, exactly one service writes to it and
+  every other domain calls that service. Make it append-only, enforce that with a
+  trigger, and correct by writing compensating rows rather than editing history.
+- **Writes driven by an external callback are idempotent.** Providers retry. Key
+  the write on something stable from the payload and check before inserting — in
+  the service, not the caller.
+- **Imports** use the `@/` alias (`@/lib/onboarding/rules`), not `../../..`.
+- **Money is not a float.** Currency is `numeric(10,2)` in Postgres; counters are
+  integers.
 - **Every schema change is a new migration.** Never edit one that has been applied.
 
 ### Worked examples in the repo
@@ -703,4 +603,4 @@ function. Adding a step means editing `types.ts` and `rules.ts`, not five files.
 
 Supporting cast: `lib/auth/session.ts` (who is asking), `lib/supabase/admin.ts`
 (the service-role rules), `lib/config/serverEnv.ts` (fail at boot, not at 3am),
-`lib/errors/` (the shared `Result` type), `middleware.ts` (session + ops gate).
+`lib/errors/` (the shared `Result` type), `middleware.ts` (session refresh).

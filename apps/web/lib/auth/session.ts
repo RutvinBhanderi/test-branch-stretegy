@@ -5,7 +5,7 @@ import { AppError } from "@/lib/errors";
 import type { SessionAccount, SessionUser } from "./types";
 
 /**
- * Resolving WHO is asking. Every page, action and ops operation starts here.
+ * Resolving WHO is asking. Every page and Server Action starts here.
  *
  * Identity always comes from the session cookie, never from a form field, a query
  * string or a request body. A user can type any UUID into a form; they cannot
