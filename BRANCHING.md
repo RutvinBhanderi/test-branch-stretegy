@@ -309,19 +309,23 @@ Set at the repo or environment level (Settings → Secrets and variables → Act
 
 | Name | Scope | Used by |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Repo | `ci.yml` build job |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Repo | `ci.yml` build job |
+| `NEXT_PUBLIC_SUPABASE_URL` | Repo | build job - optional, falls back to a placeholder |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Repo | build job - optional, falls back to a placeholder |
 | `PREVIEW_URL` (var, not secret) | Repo | `ci.yml` E2E job |
 | `SONAR_TOKEN` | Repo | not yet - see Known gaps |
 
-`SUPABASE_SERVICE_ROLE_KEY` is deliberately **not** a CI secret. The build needs
-the variable to exist - `next build` evaluates page modules, and
-`lib/config/serverEnv.ts` validates at module load - but it never connects, so
-`ci.yml` passes a literal placeholder. The real key belongs in the runtime
-environment (Vercel), not in every workflow run.
+**No Supabase value is required for CI to pass.** `next build` evaluates every page
+module, and both `lib/config/env.ts` and `lib/config/serverEnv.ts` validate at
+module load, so the variables have to *exist* - but the build never connects,
+because every route is dynamic. `ci.yml` falls back to placeholders when the
+secrets are unset, and `SUPABASE_SERVICE_ROLE_KEY` is always a placeholder:
+putting a real service-role key in CI would expose it to every workflow run,
+including PR builds, for no benefit. Real values come from the runtime
+environment (Vercel), not from CI.
 
-A missing secret is worth catching early. If the build job's Supabase variables are
-absent, `Build` fails and the required check blocks every PR with no obvious cause.
+When this does go wrong it fails badly. Next reports `Failed to collect page data
+for <some page>` and **the page it names varies between runs**, so it is not a
+clue. The real reason is on the `[cause]` line immediately above it in the log.
 
 Production-only secrets (service role key, wallet certs, payout keys) should go in a
 GitHub **Environment** named `production` scoped to `main`, not repo-level, so a PR
