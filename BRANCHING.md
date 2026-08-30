@@ -79,7 +79,6 @@ Rulesets stack: if a branch matches two, it gets the union and the stricter valu
 | → Allowed merge methods | Squash + Merge commit | Squash + Merge commit |
 | Require status checks to pass | on | on |
 | → `web / lint, typecheck, test` | required | required |
-| → `SonarCloud quality gate` | required | required |
 | → `Build` | required | required |
 | → Require branches to be up to date | on | off |
 | Block force pushes | on | on |
@@ -310,14 +309,13 @@ Set at the repo or environment level (Settings → Secrets and variables → Act
 
 | Name | Scope | Used by |
 |---|---|---|
-| `SONAR_TOKEN` | Repo | `ci.yml` quality-gate job |
 | `NEXT_PUBLIC_SUPABASE_URL` | Repo | `ci.yml` build job |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Repo | `ci.yml` build job |
 | `PREVIEW_URL` (var, not secret) | Repo | `ci.yml` E2E job |
+| `SONAR_TOKEN` | Repo | not yet - see Known gaps |
 
-A missing secret is worth catching early: if `SONAR_TOKEN` is absent the quality gate
-fails, `Build` never runs because it declares `needs: [quality-gate]`, and the required
-check sits "Expected" forever with no obvious cause.
+A missing secret is worth catching early. If the build job's Supabase variables are
+absent, `Build` fails and the required check blocks every PR with no obvious cause.
 
 Production-only secrets (service role key, wallet certs, payout keys) should go in a
 GitHub **Environment** named `production` scoped to `main`, not repo-level, so a PR
@@ -334,6 +332,11 @@ Vercel deploy in the first place.
 
 ## Known gaps
 
+- **SonarCloud is not wired up.** The `quality-gate` job has been removed from
+  `ci.yml` until a SonarCloud organization exists; `Build` currently runs straight off
+  `web-checks`. The restore checklist is in the comment above the `build` job, and
+  `sonar-project.properties` is kept in the repo ready for it. Until then there are two
+  required status checks, not three.
 - **PR titles are unlinted.** The husky hook covers local commits; squash merges take
   the PR title instead. A commitlint step on `pull_request` titles would close this.
 - **CODEOWNERS is a single-owner catch-all.** Trim to security-sensitive paths with two
