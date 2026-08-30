@@ -103,8 +103,8 @@ stops a reviewer pushing a fix into someone else's PR and then approving their o
 code. On `develop` the friction outweighs the benefit.
 
 **`Require branches to be up to date`** is off on `develop` because every merge would
-invalidate every other open PR and re-run the full `web-checks → quality-gate → build`
-chain. On `main` and `staging`, where merges are rare and deliberate, it is free.
+invalidate every other open PR and re-run the full `web-checks → build` chain.
+On `main` and `staging`, where merges are rare and deliberate, it is free.
 
 **`Require signed commits`** mostly catches direct pushes, which the PR rule already
 blocks - squash and merge commits created in the GitHub UI are signed by GitHub's own
@@ -136,7 +136,7 @@ gh pr create --base develop --fill
 ```
 
 `feature/*` and `fix/*` have no ruleset - force-push, rebase and amend freely while the
-branch is yours. On the PR: three checks, a Vercel preview, one approval, all
+branch is yours. On the PR: both checks, a Vercel preview, one approval, all
 conversations resolved. Then **Squash and merge** and delete the branch.
 
 GitHub uses the **PR title** as the squash commit message. The husky `commit-msg` hook
