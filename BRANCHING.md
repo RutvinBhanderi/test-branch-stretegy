@@ -314,6 +314,12 @@ Set at the repo or environment level (Settings → Secrets and variables → Act
 | `PREVIEW_URL` (var, not secret) | Repo | `ci.yml` E2E job |
 | `SONAR_TOKEN` | Repo | not yet - see Known gaps |
 
+`SUPABASE_SERVICE_ROLE_KEY` is deliberately **not** a CI secret. The build needs
+the variable to exist - `next build` evaluates page modules, and
+`lib/config/serverEnv.ts` validates at module load - but it never connects, so
+`ci.yml` passes a literal placeholder. The real key belongs in the runtime
+environment (Vercel), not in every workflow run.
+
 A missing secret is worth catching early. If the build job's Supabase variables are
 absent, `Build` fails and the required check blocks every PR with no obvious cause.
 

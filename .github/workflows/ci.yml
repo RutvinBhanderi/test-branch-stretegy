@@ -94,6 +94,18 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # `next build` evaluates every page module to collect route config, and
+          # lib/config/serverEnv.ts validates at module load - so this variable has
+          # to exist or the build fails with "Failed to collect page data".
+          #
+          # A literal placeholder is deliberate. The build never connects: every
+          # route is dynamic, so nothing is fetched at build time, and putting a
+          # real service-role key in CI would expose it to every workflow run for
+          # no benefit. The real key belongs in the Vercel/runtime environment.
+          #
+          # If a statically generated page ever needs real Supabase data at build
+          # time, this is the line that has to change.
+          SUPABASE_SERVICE_ROLE_KEY: build-time-placeholder-not-a-real-key
 
   # ---------------------------------------------------------------------------
   # E2E — only on merges into develop/staging, not on every PR (TDD section 4.1).
