@@ -13,14 +13,20 @@
     "test": "pnpm -r --filter=./apps/web test",
     "test:coverage": "pnpm -r --filter=./apps/web test:coverage",
     "e2e": "pnpm --filter web e2e",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "db:push": "supabase db push",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "node scripts/setup-git-hooks.js"
   },
   "devDependencies": {
-    "prettier": "^3.3.3",
-    "husky": "^9.1.5",
     "@commitlint/cli": "^19.4.0",
-    "@commitlint/config-conventional": "^19.4.0"
+    "@commitlint/config-conventional": "^19.4.0",
+    "husky": "^9.1.5",
+    "prettier": "^3.3.3",
+    "supabase": "^2.116.0"
   }
 }

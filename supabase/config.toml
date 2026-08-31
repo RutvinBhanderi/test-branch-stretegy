@@ -3,6 +3,12 @@ project_id = "greenback-cash"
 [db]
 port = 54322
 
+# `supabase db reset` applies every migration, then these files. The CLI default
+# is supabase/seed.sql; this repo keeps seed data in a subdirectory.
+[db.seed]
+enabled = true
+sql_paths = ["./seed/seed.sql"]
+
 [api]
 port = 54321
 
@@ -12,3 +18,17 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = false
+
+# Fixed OTP codes for local development. No Twilio account, no SMS sent, no cost.
+# Sign in with the number on the left and the code on the right.
+#
+# The whole onboarding flow is phone-based, so without this you cannot get past
+# step 2 locally. The number must match PhoneSchema in lib/auth/schema.ts, which
+# requires E.164 - type it in the form WITH the leading +, and list it here
+# WITHOUT one.
+[auth.sms.test_otp]
+14155550123 = "123456"

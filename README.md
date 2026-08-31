@@ -38,9 +38,12 @@ walking up from the repo root.
 ## Prerequisites
 
 - Node 22.21.1 (`.nvmrc` - use `nvm use`)
-- pnpm 9.9.0 (`corepack enable` will pick up the version pinned in `package.json`)
-- Docker (for running Supabase locally - the Supabase CLI uses it under the hood)
-- Supabase CLI (`brew install supabase/tap/supabase` or see supabase.com/docs/guides/cli)
+- pnpm 9.9.0 (`corepack enable` picks up the version pinned in `package.json`)
+- **Docker, running.** The Supabase CLI starts Postgres, Auth, Storage and the
+  rest as containers.
+
+The Supabase CLI itself is a devDependency, so `pnpm install` brings it - there is
+nothing to install globally.
 
 ## First-time setup
 
@@ -48,13 +51,68 @@ walking up from the repo root.
 corepack enable
 pnpm install
 
-cp apps/web/.env.example apps/web/.env.local
-# fill in NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY once local Supabase is up
-
-# Local Supabase (applies supabase/migrations, then supabase/seed/seed.sql)
-supabase start
-supabase db reset
+pnpm db:start     # first run pulls several GB of images
 ```
+
+`db:start` prints an API URL, an anon key and a service_role key. Copy those three
+into `apps/web/.env.local`:
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
+
+| `.env.local` | value from `pnpm db:start` |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | API URL (`http://127.0.0.1:54321`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon key` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role key` |
+
+`pnpm db:status` reprints them at any time. Then apply the schema and run it:
+
+```bash
+pnpm db:reset     # applies supabase/migrations, then supabase/seed/seed.sql
+pnpm dev
+```
+
+### Signing in locally
+
+Onboarding is phone-OTP based, and no SMS is sent locally. `supabase/config.toml`
+defines a fixed test number and code under `[auth.sms.test_otp]`:
+
+| Phone - type it with the `+` | Code |
+|---|---|
+| `+14155550123` | `123456` |
+
+Add more pairs there if you need several accounts. Without this you cannot get
+past step 2 of onboarding, since every later step needs a session.
+
+### Using a hosted Supabase project instead
+
+A free project on supabase.com works too, and gives you the exact values Vercel
+will need later. Create it, then from **Settings -> API** copy the Project URL,
+`anon` key and `service_role` key into `apps/web/.env.local`, and apply the
+schema:
+
+```bash
+pnpm exec supabase login
+pnpm exec supabase link --project-ref <your-project-ref>
+pnpm db:push          # applies supabase/migrations to the remote database
+```
+
+Two warnings.
+
+**`db:push` is not `db:reset`.** `pnpm db:reset` only ever touches the local
+stack. The remote equivalent, `supabase db reset --linked`, **wipes the hosted
+database** - never run it against anything you care about.
+
+**Phone OTP needs an SMS provider on a hosted project.** The `[auth.sms.test_otp]`
+block in `config.toml` is honoured by the local stack; whether a hosted project
+picks it up depends on `supabase config push` being accepted for that setting. If
+it is not, you need Twilio credentials in the Supabase dashboard, or you keep the
+local stack for anything that involves signing in.
+
+The pragmatic split: local stack for day-to-day work (free, instant, test OTP
+works), hosted project as the target for Vercel preview deployments.
 
 ## Day-to-day commands
 
@@ -66,6 +124,10 @@ supabase db reset
 | `pnpm test` | Vitest unit tests |
 | `pnpm test:coverage` | Same, with coverage report (`apps/web/coverage`) |
 | `pnpm e2e` | Playwright E2E - needs the app running or `E2E_BASE_URL` set |
+| `pnpm db:start` / `db:stop` | Start / stop the local Supabase stack |
+| `pnpm db:reset` | Re-apply all migrations and seed - wipes local data |
+| `pnpm db:status` | Print the local URLs and keys |
+| `pnpm db:push` | Apply migrations to the linked remote database |
 | `pnpm format` | Prettier write across the repo |
 
 ## Where things stand
