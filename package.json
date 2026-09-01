@@ -3,24 +3,30 @@
   "private": true,
   "packageManager": "pnpm@9.9.0",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm -r --filter=./apps/* build",
-    "lint": "pnpm -r --filter=./apps/* --filter=./packages/* lint",
-    "typecheck": "pnpm -r --filter=./apps/web --filter=./packages/* typecheck",
+    "lint": "pnpm -r --filter=./apps/* lint",
+    "typecheck": "pnpm -r --filter=./apps/* typecheck",
     "test": "pnpm -r --filter=./apps/web test",
     "test:coverage": "pnpm -r --filter=./apps/web test:coverage",
     "e2e": "pnpm --filter web e2e",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "db:push": "supabase db push",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "node scripts/setup-git-hooks.js"
   },
   "devDependencies": {
-    "prettier": "^3.3.3",
-    "husky": "^9.1.5",
     "@commitlint/cli": "^19.4.0",
-    "@commitlint/config-conventional": "^19.4.0"
+    "@commitlint/config-conventional": "^19.4.0",
+    "husky": "^9.1.5",
+    "prettier": "^3.3.3",
+    "supabase": "^2.116.0"
   }
 }

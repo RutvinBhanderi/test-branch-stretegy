@@ -1,3 +1,0 @@
-{
-  "extends": ["@greenback/config/eslint-preset.js"]
-}

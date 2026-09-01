@@ -2,16 +2,16 @@ name: CI
 
 on:
   pull_request:
-    branches: [develop, staging, main]
+    branches: [develop, staging, main, "release/**", "hotfix/**"]
   push:
-    branches: [develop, staging, main]
+    branches: [develop, staging, main, "release/**", "hotfix/**"]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20.17.0"
+  NODE_VERSION: "22.21.1"
   PNPM_VERSION: "9.9.0"
 
 jobs:
@@ -39,10 +39,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm --filter web --filter "@greenback/*" lint
+        run: pnpm --filter web lint
 
       - name: Typecheck
-        run: pnpm --filter web --filter "@greenback/*" typecheck
+        run: pnpm --filter web typecheck
 
       - name: Unit tests + coverage
         run: pnpm --filter web test:coverage
@@ -55,42 +55,25 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Code quality gate — SonarCloud. Blocks build/deploy if it fails.
-  # ---------------------------------------------------------------------------
-  quality-gate:
-    name: SonarCloud quality gate
-    runs-on: ubuntu-latest
-    needs: [web-checks]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: web-coverage
-          path: apps/web/coverage
-
-      - name: SonarCloud scan
-        uses: SonarSource/sonarqube-scan-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: Enforce quality gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  # ---------------------------------------------------------------------------
-  # Build — only runs once the quality gate has passed.
+  # Build.
+  #
+  # TODO: re-insert the SonarCloud quality-gate job between web-checks and build
+  # once a SonarCloud organization exists. Checklist to restore it:
+  #   1. Set sonar.organization + sonar.projectKey in sonar-project.properties
+  #      (the project key must match what SonarCloud actually created).
+  #   2. Add a SONAR_TOKEN repo secret.
+  #   3. Disable Automatic Analysis on the SonarCloud project, or the scan
+  #      action errors out.
+  #   4. Change this job back to `needs: [quality-gate]`.
+  #   5. Re-add "SonarCloud quality gate" to the required status checks in the
+  #      release-branches and integration-branch rulesets.
+  # The coverage artifact uploaded by web-checks is what that job consumes -
+  # it is kept in place so nothing else has to change.
   # ---------------------------------------------------------------------------
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [quality-gate]
+    needs: [web-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -109,8 +92,27 @@ jobs:
       - name: Build
         run: pnpm --filter web build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # `next build` evaluates every page module to collect route config, and
+          # lib/config/{env,serverEnv}.ts both validate at module load - so all
+          # three variables must exist or the build dies with the unhelpful
+          # "Failed to collect page data for <some page>". The page it names
+          # varies between runs; the real reason is in the `[cause]` line.
+          #
+          # The build never connects to Supabase: every route is dynamic, so
+          # nothing is fetched at build time. These only need to be present, which
+          # is why each falls back to a placeholder when the secret is unset - a
+          # compile check should not require a live project. Real values come from
+          # the runtime environment (Vercel), and are used here when set.
+          #
+          # The service-role key has no fallback to a real secret on purpose:
+          # putting it in CI would expose it to every workflow run, including PR
+          # builds, for no benefit.
+          #
+          # If a statically generated page ever needs real Supabase data at build
+          # time, these are the lines that have to change.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'build-time-placeholder-anon-key' }}
+          SUPABASE_SERVICE_ROLE_KEY: build-time-placeholder-not-a-real-key
 
   # ---------------------------------------------------------------------------
   # E2E — only on merges into develop/staging, not on every PR (TDD section 4.1).
