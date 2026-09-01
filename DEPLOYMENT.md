@@ -85,7 +85,12 @@ wins over the general Preview value for that branch alone.
 
 So each of the three variables in section 2 is entered three times: once for
 Production, once for Preview scoped to `staging`, once for Preview with the Branch
-field left blank. Set the Production Branch to `main` under Settings → Git.
+field left blank.
+
+The Production Branch needs no setup: Vercel takes the repo's default branch at import
+time, which is `main` here. Confirm it under Settings → Git and move on. Note it is a
+one-time snapshot - if the default branch on GitHub ever changes, Vercel keeps what it
+recorded at import.
 
 Two alternatives, if branch-scoped overrides read as too implicit. **Custom
 Environments** (Pro plan) give `staging` a first-class named environment with its own
