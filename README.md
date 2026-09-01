@@ -130,6 +130,12 @@ works), hosted project as the target for Vercel preview deployments.
 | `pnpm db:push` | Apply migrations to the linked remote database |
 | `pnpm format` | Prettier write across the repo |
 
+## Deployment
+
+Hosted on Vercel, Root Directory `apps/web`, production branch `main`. Full setup -
+project settings, the three required environment variables, branch-to-environment
+mapping and how migrations are applied - is in **`DEPLOYMENT.md`**.
+
 ## Where things stand
 
 This is a foundation scaffold, not a finished app. What's real and working:
